@@ -31,9 +31,9 @@ Type an address such as 192.168.1.10/26 on your phone and the result is shown on
 
 Works fully offline. No account, no tracking.
 
-## Changelog (0.2.0)
+## Changelog (0.2.1)
 
-Subnet list ordered smallest first, with detail pages for every prefix showing example addresses, first/last host and broadcast.
+Subnet list ordered smallest first, with detail pages for every prefix showing example addresses, first/last host and broadcast. Phone UI is now in English.
 
 ## Assets
 

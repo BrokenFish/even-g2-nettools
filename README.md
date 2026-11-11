@@ -1,47 +1,47 @@
 # Net Tools for Even Realities G2
 
-Nettverks-jukselapper og subnettkalkulator for Even Realities G2-brillene, laget med [Even Hub SDK](https://www.npmjs.com/package/@evenrealities/even_hub_sdk).
+Network cheat sheets and a subnet calculator for Even Realities G2 smart glasses, built with the [Even Hub SDK](https://www.npmjs.com/package/@evenrealities/even_hub_sdk).
 
-## Hva den gjør
+## Features
 
-**På brillene** (meny → velg med touchpad):
+**On the glasses** (menu → select with the touchpad):
 
-| Ark | Innhold |
+| Sheet | Contents |
 | --- | --- |
-| Subnets (/32 → /8) | Liste med minste subnett øverst. Klikk på et subnett for detaljer: maske, wildcard, blokkstørrelse, antall hoster, og eksempeladresser (nettverk, første/siste host, broadcast, neste subnett) |
-| Mask octets & blocks | Oktettverdier, blokkstørrelser, huskeregler |
-| Wildcard masks | /32–/16 wildcard (ACL/OSPF) |
+| Subnets (/32 → /8) | List with the smallest subnets at the top. Click a subnet for details: mask, wildcard, block size, host count, and example addresses (network, first/last host, broadcast, next subnet) |
+| Mask octets & blocks | Octet values, block sizes, rules of thumb |
+| Wildcard masks | /32–/16 wildcard masks (ACL/OSPF) |
 | Private & special IPv4 | RFC 1918, CGNAT, loopback, link-local, TEST-NET … |
-| Classful ranges | Klasse A–E |
-| Common ports | ~40 vanlige porter |
-| IPv6 cheat sheet | Adressetyper, multicast, prefiksstørrelser |
-| OSI model | 7 lag + TCP/IP |
-| Troubleshooting cmds | Linux/macOS- og Windows-kommandoer |
-| MTU, headers & VLAN | MTU, header-størrelser, DF-ping |
-| Calculator result | Siste beregning fra telefonen |
+| Classful ranges | Classes A–E |
+| Common ports | ~40 common ports |
+| IPv6 cheat sheet | Address types, multicast, prefix sizes |
+| OSI model | 7 layers + TCP/IP |
+| Troubleshooting cmds | Linux/macOS and Windows commands |
+| MTU, headers & VLAN | MTU, header sizes, DF ping |
+| Calculator result | Latest calculation from the phone |
 
-**På telefonen** (siden i Even-appen):
+**On the phone** (the page inside the Even app):
 
-- Subnettkalkulator: skriv `192.168.1.10/26` eller `10.0.0.5 255.255.255.0` → nettverk, broadcast, første/siste host, wildcard, antall hoster, type adresse. Resultatet sendes rett til brillene.
-- Del opp et nettverk i mindre subnett.
-- Subnett-tabell (minste først) der hvert subnett kan åpnes med eksempeladresser.
-- Alle jukselappene, med knapp for å vise dem på brillene.
+- Subnet calculator: enter `192.168.1.10/26` or `10.0.0.5 255.255.255.0` → network, broadcast, first/last host, wildcard, host count, address type. The result is sent straight to the glasses.
+- Split a network into smaller subnets.
+- Subnet table (smallest first) where each subnet expands to show example addresses.
+- All cheat sheets, each with a button to show it on the glasses.
 
-### Kontroller på brillene
+### Controls on the glasses
 
-| Gest | Meny / lister | Jukselapp / subnett-detaljer |
+| Gesture | Menu / lists | Cheat sheet / subnet details |
 | --- | --- | --- |
-| Scroll | Flytt markering | Forrige / neste side. I subnett-detaljer: forbi siste side → neste større subnett (/26 → /25), forbi første side → neste mindre (/26 → /27) |
-| Klikk | Åpne | Neste side (siste side → tilbake) |
-| Dobbeltklikk | Tilbake (avslutt fra hovedmenyen) | Tilbake |
+| Scroll | Move selection | Previous / next page. In subnet details: past the last page → next larger subnet (/26 → /25), before the first page → next smaller subnet (/26 → /27) |
+| Click | Open | Next page (last page → back) |
+| Double-click | Back (exits from the main menu) | Back |
 
-Subnett-detaljene har tre sider: **1)** maske, wildcard, hoster, blokkstørrelse, bruksområde og binær maske, **2)** eksempel (f.eks. `192.168.1.0/26`) med nettverk, første/siste host, broadcast og neste subnett, **3)** de første subnettene i overliggende blokk (f.eks. alle fire /26 i `192.168.1.0/24`).
+Subnet details have three pages: **1)** mask, wildcard, hosts, block size, typical use and binary mask, **2)** an example (e.g. `192.168.1.0/26`) with network, first/last host, broadcast and next subnet, **3)** the first subnets in the parent block (e.g. all four /26 networks in `192.168.1.0/24`).
 
-G2-firmwaren tillater maks 20 elementer i en liste, så subnettlisten viser /32 → /16, og siste element åpner /15 → /8.
+The G2 firmware allows at most 20 items in a list, so the subnet list shows /32 → /16 and the last item opens /15 → /8.
 
-## Kom i gang
+## Getting started
 
-Krever Node 20.17+ / 22.13+ og Even-appen 2.2.10 eller nyere.
+Requires Node 20.17+ / 22.13+ and Even app 2.2.10 or later.
 
 ```bash
 npm install
@@ -51,25 +51,25 @@ npm install
 npm run dev
 ```
 
-Åpne `http://localhost:5173` i en nettleser for å få en simulert G2-skjerm (piltaster = scroll, Enter = klikk, Esc = dobbeltklikk).
+Open `http://localhost:5173` in a browser to get a simulated G2 display (arrow keys = scroll, Enter = click, Esc = double-click).
 
-### Test på ekte briller
+### Test on real glasses
 
-Med `npm run dev` kjørende, på samme Wi-Fi som telefonen:
+With `npm run dev` running, on the same Wi-Fi as your phone:
 
 ```bash
 npx evenhub qr --port 5173
 ```
 
-Skann QR-koden i Even-appen (utviklermodus).
+Scan the QR code in the Even app (developer mode).
 
-### Bygg pakke (.ehpk)
+### Build a package (.ehpk)
 
 ```bash
 npm run pack
 ```
 
-Gir `nettools.ehpk`. Last opp med `npx evenhub login` og `npx evenhub create nettools.ehpk --name "Net Tools" --tagline "Network cheat sheets"`. Bytt gjerne `package_id` i `app.json` til ditt eget navnerom først.
+This produces `nettools.ehpk`. Upload it with `npx evenhub login` and `npx evenhub create nettools.ehpk --name "Net Tools" --tagline "Network cheat sheets"`. Consider changing `package_id` in `app.json` to your own namespace first.
 
 ### Official simulator
 
@@ -81,7 +81,7 @@ npm run sim
 
 The automation API on port 9898 can take glasses screenshots: `curl -o shot.png http://127.0.0.1:9898/api/screenshot/glasses`.
 
-### Tester
+### Tests
 
 ```bash
 npm test
@@ -91,22 +91,22 @@ npm test
 
 Everything for Even Hub is in [`store/`](store/): icon, cover, logo, screenshots from the official simulator, description ([`listing.md`](store/listing.md)), [privacy policy](store/privacy-policy.md) and [terms of use](store/terms-of-use.md).
 
-## Struktur
+## Project structure
 
 ```
-src/subnet.ts       IPv4-matte (ren logikk, testet)
-src/content.ts      Jukselapp-innhold + sideoppdeling
-src/glasses.ts      Brille-UI: meny (list container) og sidevisning (text containers)
-src/mock-bridge.ts  Simulert G2-skjerm for nettleseren
-src/main.ts         Telefon-UI og oppstart
-app.json            Even Hub-manifest
+src/subnet.ts       IPv4 math (pure logic, tested)
+src/content.ts      Cheat sheet content + pagination
+src/glasses.ts      Glasses UI: menus (list containers) and paged views (text containers)
+src/mock-bridge.ts  Simulated G2 display for the browser
+src/main.ts         Phone UI and startup
+app.json            Even Hub manifest
 ```
 
-## Merknader
+## Notes
 
-- Appen trenger ingen tillatelser (ingen nettverk, mikrofon e.l.) — alt kjører lokalt.
-- G2-skjermen er 576×288. Linjene holdes under ~42 tegn og 8 linjer per side; juster `LINES_PER_PAGE` i `src/glasses.ts` hvis teksten blir for stor/liten på dine briller.
+- The app needs no permissions (no network, microphone, etc.) — everything runs locally.
+- The G2 display is 576×288. Lines are kept under ~42 characters and 8 lines per page; adjust `LINES_PER_PAGE` in `src/glasses.ts` if text is too large or small on your glasses.
 
-## Lisens
+## License
 
 MIT

@@ -52,16 +52,16 @@ function renderCalc(input: string): boolean {
     const r = calculate(input);
     err.hidden = true;
     const rows: Array<[string, string]> = [
-      ['Nettverk', `${r.network}/${r.prefix}`],
-      ['Maske', r.mask],
+      ['Network', `${r.network}/${r.prefix}`],
+      ['Mask', r.mask],
       ['Wildcard', r.wildcard],
-      ['Første host', r.firstHost],
-      ['Siste host', r.lastHost],
+      ['First host', r.firstHost],
+      ['Last host', r.lastHost],
       ['Broadcast', r.broadcast],
-      ['Brukbare hoster', formatCount(r.usableHosts)],
-      ['Totalt adresser', formatCount(r.totalAddresses)],
-      ['Klasse / type', `${r.ipClass} · ${r.scope}`],
-      ['Binær maske', r.binaryMask],
+      ['Usable hosts', formatCount(r.usableHosts)],
+      ['Total addresses', formatCount(r.totalAddresses)],
+      ['Class / type', `${r.ipClass} · ${r.scope}`],
+      ['Binary mask', r.binaryMask],
     ];
     for (const [k, v] of rows) {
       const dt = document.createElement('dt');
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
   renderCalc(saved);
   await app.start(saved);
 
-  $('status').textContent = mock ? 'Forhåndsvisning i nettleser' : 'Koblet til Even-appen';
+  $('status').textContent = mock ? 'Browser preview' : 'Connected to the Even app';
 
   $('calc-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -125,7 +125,7 @@ async function main(): Promise<void> {
     const pre = document.createElement('pre');
     pre.textContent = sheetText(sheet);
     const btn = document.createElement('button');
-    btn.textContent = 'Vis på brillene';
+    btn.textContent = 'Show on glasses';
     btn.addEventListener('click', () => void app.openSheetById(sheet.id));
     d.append(sum, pre, btn);
     return d;
@@ -162,5 +162,5 @@ async function main(): Promise<void> {
 
 main().catch((e) => {
   console.error(e);
-  $('status').textContent = `Feil: ${(e as Error).message}`;
+  $('status').textContent = `Error: ${(e as Error).message}`;
 });
