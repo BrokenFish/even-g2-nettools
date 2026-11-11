@@ -38,4 +38,4 @@ We may update these terms. The updated version will be published at the same loc
 
 ## 9. Contact
 
-Questions about these terms: [CONTACT EMAIL]
+Questions about these terms: andreasbgit@protonmail.com

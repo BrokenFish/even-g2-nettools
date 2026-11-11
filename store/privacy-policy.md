@@ -38,4 +38,4 @@ If this policy changes, the updated version will be published at the same locati
 
 ## Contact
 
-If you have questions about this policy, contact: [CONTACT EMAIL]
+If you have questions about this policy, contact: andreasbgit@protonmail.com
