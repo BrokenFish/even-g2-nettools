@@ -1,6 +1,6 @@
 {
   "name": "even-g2-nettools",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Network cheat sheets and subnet calculator for Even Realities G2 smart glasses",
