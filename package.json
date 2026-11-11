@@ -1,0 +1,25 @@
+{
+  "name": "even-g2-nettools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Network cheat sheets and subnet calculator for Even Realities G2 smart glasses",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "qr": "evenhub qr --port 5173",
+    "pack": "npm run build && evenhub pack app.json ./dist -o nettools.ehpk"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@evenrealities/even_hub_sdk": "^0.0.16"
+  },
+  "devDependencies": {
+    "@evenrealities/evenhub-cli": "^0.2.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

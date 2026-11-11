@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Net Tools</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Net Tools</h1>
+        <p class="sub" id="status">Kobler til brillene…</p>
+      </header>
+
+      <section class="card">
+        <h2>Subnettkalkulator</h2>
+        <form id="calc-form">
+          <input id="calc-input" autocomplete="off" autocapitalize="off" spellcheck="false"
+                 placeholder="192.168.1.10/24 eller 10.0.0.5 255.255.255.0" />
+          <button type="submit">Beregn &amp; vis på brillene</button>
+        </form>
+        <p class="error" id="calc-error" hidden></p>
+        <dl id="calc-result"></dl>
+
+        <h3>Del opp nettverket</h3>
+        <form id="split-form" class="row">
+          <label>Ny prefiks <input id="split-prefix" type="number" min="1" max="32" value="26" /></label>
+          <button type="submit">Del opp</button>
+        </form>
+        <ol id="split-result"></ol>
+      </section>
+
+      <section class="card" id="preview-card" hidden>
+        <h2>Brille-forhåndsvisning</h2>
+        <p class="sub">Ikke i Even-appen — viser en simulert G2-skjerm. Piltaster = scroll, Enter = klikk, Esc = dobbeltklikk.</p>
+        <div class="glasses"><div id="screen"></div></div>
+        <div class="row pad">
+          <button data-g="up">▲ Opp</button>
+          <button data-g="down">▼ Ned</button>
+          <button data-g="click">Klikk</button>
+          <button data-g="double">Dobbeltklikk</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Jukselapper</h2>
+        <p class="sub">Trykk for å åpne på brillene.</p>
+        <div id="sheets"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
