@@ -71,11 +71,25 @@ npm run pack
 
 Gir `nettools.ehpk`. Last opp med `npx evenhub login` og `npx evenhub create nettools.ehpk --name "Net Tools" --tagline "Network cheat sheets"`. Bytt gjerne `package_id` i `app.json` til ditt eget navnerom først.
 
+### Official simulator
+
+With `npm run dev` running:
+
+```bash
+npm run sim
+```
+
+The automation API on port 9898 can take glasses screenshots: `curl -o shot.png http://127.0.0.1:9898/api/screenshot/glasses`.
+
 ### Tester
 
 ```bash
 npm test
 ```
+
+## Store listing
+
+Everything for Even Hub is in [`store/`](store/): icon, cover, logo, screenshots from the official simulator, description ([`listing.md`](store/listing.md)), [privacy policy](store/privacy-policy.md) and [terms of use](store/terms-of-use.md).
 
 ## Struktur
 
