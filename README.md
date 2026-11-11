@@ -8,9 +8,9 @@ Nettverks-jukselapper og subnettkalkulator for Even Realities G2-brillene, laget
 
 | Ark | Innhold |
 | --- | --- |
-| Subnet / CIDR table | /8–/32 → maske og antall hoster |
+| Subnets (/32 → /8) | Liste med minste subnett øverst. Klikk på et subnett for detaljer: maske, wildcard, blokkstørrelse, antall hoster, og eksempeladresser (nettverk, første/siste host, broadcast, neste subnett) |
 | Mask octets & blocks | Oktettverdier, blokkstørrelser, huskeregler |
-| Wildcard masks | /16–/32 wildcard (ACL/OSPF) |
+| Wildcard masks | /32–/16 wildcard (ACL/OSPF) |
 | Private & special IPv4 | RFC 1918, CGNAT, loopback, link-local, TEST-NET … |
 | Classful ranges | Klasse A–E |
 | Common ports | ~40 vanlige porter |
@@ -24,15 +24,20 @@ Nettverks-jukselapper og subnettkalkulator for Even Realities G2-brillene, laget
 
 - Subnettkalkulator: skriv `192.168.1.10/26` eller `10.0.0.5 255.255.255.0` → nettverk, broadcast, første/siste host, wildcard, antall hoster, type adresse. Resultatet sendes rett til brillene.
 - Del opp et nettverk i mindre subnett.
+- Subnett-tabell (minste først) der hvert subnett kan åpnes med eksempeladresser.
 - Alle jukselappene, med knapp for å vise dem på brillene.
 
 ### Kontroller på brillene
 
-| Gest | Meny | Jukselapp |
+| Gest | Meny / lister | Jukselapp / subnett-detaljer |
 | --- | --- | --- |
-| Scroll | Flytt markering | Forrige / neste side |
-| Klikk | Åpne | Neste side (siste side → meny) |
-| Dobbeltklikk | Avslutt app | Tilbake til meny |
+| Scroll | Flytt markering | Forrige / neste side. I subnett-detaljer: forbi siste side → neste større subnett (/26 → /25), forbi første side → neste mindre (/26 → /27) |
+| Klikk | Åpne | Neste side (siste side → tilbake) |
+| Dobbeltklikk | Tilbake (avslutt fra hovedmenyen) | Tilbake |
+
+Subnett-detaljene har tre sider: **1)** maske, wildcard, hoster, blokkstørrelse, bruksområde og binær maske, **2)** eksempel (f.eks. `192.168.1.0/26`) med nettverk, første/siste host, broadcast og neste subnett, **3)** de første subnettene i overliggende blokk (f.eks. alle fire /26 i `192.168.1.0/24`).
+
+G2-firmwaren tillater maks 20 elementer i en liste, så subnettlisten viser /32 → /16, og siste element åpner /15 → /8.
 
 ## Kom i gang
 

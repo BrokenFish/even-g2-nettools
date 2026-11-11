@@ -71,6 +71,7 @@ dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; overflow-
 ol { columns: 2; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; padding-left: 24px; }
 details { border-top: 1px solid var(--line); padding: 10px 0; }
 summary { cursor: pointer; font-weight: 600; }
+.subnet summary { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 500; font-size: 14px; }
 pre { font-size: 13px; overflow-x: auto; background: var(--bg); padding: 10px; border-radius: 8px; }
 
 /* Simulated G2 display (576×288), scaled to fit narrow screens. */

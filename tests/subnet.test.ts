@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calculate, maskToPrefix, parseInput, prefixToMask, split, usableHosts, addressScope, ipToInt } from '../src/subnet';
-import { SHEETS, calculatorSheet, paginate } from '../src/content';
+import { PAGE_BREAK, SHEETS, SUBNET_PREFIXES, calculatorSheet, paginate, subnetDetail, subnetLabel } from '../src/content';
 
 describe('subnet math', () => {
   it('converts prefixes and masks', () => {
@@ -66,11 +66,72 @@ describe('glasses content', () => {
   it('keeps lines short enough for the display', () => {
     for (const s of SHEETS) for (const l of s.lines) expect(l.length, `${s.id}: ${l}`).toBeLessThanOrEqual(42);
     for (const l of calculatorSheet('10.20.30.40/22').lines) expect(l.length).toBeLessThanOrEqual(42);
+    for (const p of SUBNET_PREFIXES) {
+      for (const l of subnetDetail(p).lines) expect(l.length, `/${p}: ${l}`).toBeLessThanOrEqual(42);
+      expect(subnetLabel(p).length).toBeLessThanOrEqual(64);
+    }
+  });
+
+  it('lists subnets smallest first', () => {
+    expect(SUBNET_PREFIXES[0]).toBe(32);
+    expect(SUBNET_PREFIXES.at(-1)).toBe(8);
+    expect(subnetLabel(26)).toBe('/26  255.255.255.192  ·  62 hosts');
+    expect(subnetLabel(32)).toBe('/32  255.255.255.255  ·  1 host');
+  });
+
+  it('shows example addresses for a /26', () => {
+    const d = subnetDetail(26);
+    expect(d.title).toBe('/26  ·  255.255.255.192');
+    expect(d.lines).toEqual(expect.arrayContaining([
+      'Wildcard  ·  0.0.0.63',
+      'Usable hosts  ·  62',
+      'Block size  ·  64 (4th octet)',
+      'Subnets per /24  ·  4',
+      'Example  ·  192.168.1.0/26',
+      'Network  ·  192.168.1.0',
+      'First host  ·  192.168.1.1',
+      'Last host  ·  192.168.1.62',
+      'Broadcast  ·  192.168.1.63',
+      'Next subnet  ·  192.168.1.64',
+      '192.168.1.192 – 192.168.1.255',
+    ]));
+    expect(d.prevId).toBe('subnet-27');
+    expect(d.nextId).toBe('subnet-25');
+  });
+
+  it('handles octet boundaries and special prefixes', () => {
+    expect(subnetDetail(24).lines).toEqual(expect.arrayContaining([
+      'Block size  ·  1 (3rd octet)',
+      'Subnets per /16  ·  256',
+      'Broadcast  ·  192.168.1.255',
+      '… 250 more',
+    ]));
+    expect(subnetDetail(20).lines).toEqual(expect.arrayContaining([
+      'Block size  ·  16 (3rd octet)',
+      'Example  ·  172.16.0.0/20',
+      'Broadcast  ·  172.16.15.255',
+    ]));
+    expect(subnetDetail(31).lines).toEqual(expect.arrayContaining(['Host A  ·  192.168.1.0', 'Host B  ·  192.168.1.1']));
+    expect(subnetDetail(32).lines).toContain('Address  ·  192.168.1.10');
+    expect(subnetDetail(32).prevId).toBeUndefined();
+    const eight = subnetDetail(8);
+    expect(eight.nextId).toBeUndefined();
+    expect(eight.lines).toEqual(expect.arrayContaining(['Broadcast  ·  10.255.255.255', 'Next subnet  ·  11.0.0.0']));
   });
 
   it('paginates', () => {
     expect(paginate(['a', 'b', 'c'], 2)).toEqual([['a', 'b'], ['c']]);
     expect(paginate([], 8)).toEqual([[]]);
+    expect(paginate(['a', PAGE_BREAK, 'b', 'c', 'd'], 2)).toEqual([['a'], ['b', 'c'], ['d']]);
+  });
+
+  it('splits subnet details into facts, example and ranges pages', () => {
+    const pages = paginate(subnetDetail(26).lines, 8);
+    expect(pages).toHaveLength(3);
+    expect(pages[0][0]).toBe('Mask  ·  255.255.255.192');
+    expect(pages[1][0]).toBe('Example  ·  192.168.1.0/26');
+    expect(pages[2][0]).toBe('In 192.168.1.0/24  (net – broadcast):');
+    for (const p of SUBNET_PREFIXES) for (const page of paginate(subnetDetail(p).lines, 8)) expect(page.length).toBeLessThanOrEqual(8);
   });
 
   it('shows errors in the calculator sheet', () => {

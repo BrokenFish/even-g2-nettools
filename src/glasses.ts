@@ -1,6 +1,7 @@
-// Glasses UI controller: a menu (list container) and a paged sheet viewer
-// (two text containers). Works against the real EvenAppBridge or the
-// browser mock in mock-bridge.ts.
+// Glasses UI controller. Screens are kept on a stack:
+//   menu (list) → subnet list (list) → subnet details (paged text)
+//   menu (list) → cheat sheet (paged text)
+// Works against the real EvenAppBridge or the browser mock in mock-bridge.ts.
 
 import {
   CreateStartUpPageContainer,
@@ -14,7 +15,7 @@ import {
   type EvenAppBridge,
   type EvenHubEvent,
 } from '@evenrealities/even_hub_sdk';
-import { SHEETS, calculatorSheet, paginate, type Sheet } from './content';
+import { SHEETS, paginate, sheetById, subnetLabel, type Sheet } from './content';
 
 export type Bridge = Pick<
   EvenAppBridge,
@@ -29,17 +30,22 @@ export type Bridge = Pick<
 export const DISPLAY_W = 576;
 export const DISPLAY_H = 288;
 export const LINES_PER_PAGE = 8;
+/** Firmware limits for list containers. */
+export const MAX_LIST_ITEMS = 20;
+export const MAX_LIST_LABEL = 64;
 
 const HEADER_ID = 1;
 const HEADER_NAME = 'header';
 const BODY_ID = 2;
 const BODY_NAME = 'body';
-const MENU_ID = 2;
-const MENU_NAME = 'menu';
+const LIST_ID = 2;
+const LIST_NAME = 'list';
 
-/** Short labels for the glasses menu (list item names). */
+/** Prefixes shown directly in the subnet list; the rest sit one level deeper. */
+const SMALL_SUBNETS = Array.from({ length: 17 }, (_, i) => 32 - i); // /32 → /16
+const LARGE_SUBNETS = Array.from({ length: 8 }, (_, i) => 15 - i); // /15 → /8
+
 const MENU_LABELS: Record<string, string> = {
-  cidr: 'Subnet / CIDR table',
   octet: 'Mask octets & blocks',
   wildcard: 'Wildcard masks',
   ranges: 'Private & special IPv4',
@@ -49,29 +55,62 @@ const MENU_LABELS: Record<string, string> = {
   osi: 'OSI model',
   commands: 'Troubleshooting cmds',
   mtu: 'MTU, headers & VLAN',
-  calc: 'Calculator result',
 };
+
+interface ListItem {
+  label: string;
+  /** `list:<id>` opens another list, anything else is a sheet id. */
+  target: string;
+}
+
+interface ListDef {
+  header: string;
+  items: ListItem[];
+}
+
+export function listDef(id: string): ListDef {
+  switch (id) {
+    case 'subnets':
+      return {
+        header: 'SUBNETS  ·  click = details  ·  2× = back',
+        items: [
+          ...SMALL_SUBNETS.map((p) => ({ label: subnetLabel(p), target: `subnet-${p}` })),
+          { label: '/15 – /8  ·  larger networks  →', target: 'list:subnets-large' },
+        ],
+      };
+    case 'subnets-large':
+      return {
+        header: 'SUBNETS /15 – /8  ·  2× = back',
+        items: LARGE_SUBNETS.map((p) => ({ label: subnetLabel(p), target: `subnet-${p}` })),
+      };
+    default:
+      return {
+        header: 'NET TOOLS  ·  click = open  ·  2× = exit',
+        items: [
+          { label: 'Subnets  (/32 → /8)', target: 'list:subnets' },
+          ...SHEETS.map((s) => ({ label: MENU_LABELS[s.id] ?? s.title, target: s.id })),
+          { label: 'Calculator result', target: 'calc' },
+        ],
+      };
+  }
+}
+
+type Screen = { kind: 'list'; id: string } | { kind: 'sheet'; sheet: Sheet; pages: string[][]; page: number };
 
 type Action = 'click' | 'double' | 'up' | 'down';
 
 export class GlassesApp {
-  private mode: 'menu' | 'sheet' = 'menu';
-  private sheet: Sheet | null = null;
-  private pages: string[][] = [];
-  private page = 0;
+  private stack: Screen[] = [{ kind: 'list', id: 'menu' }];
   private started = false;
   private lastAction = { action: '', at: 0 };
   private calcInput = '192.168.1.10/24';
-  private menuIds: string[] = [...SHEETS.map((s) => s.id), 'calc'];
 
   constructor(private bridge: Bridge) {}
 
   async start(calcInput?: string): Promise<void> {
     if (calcInput) this.calcInput = calcInput;
     this.bridge.onEvenHubEvent((e) => this.handleEvent(e));
-    const res = await this.bridge.createStartUpPageContainer(
-      new CreateStartUpPageContainer(this.menuLayout()),
-    );
+    const res = await this.bridge.createStartUpPageContainer(new CreateStartUpPageContainer(this.layout()));
     if (res !== StartUpPageCreateResult.success) {
       console.warn('createStartUpPageContainer failed:', res);
     }
@@ -81,43 +120,78 @@ export class GlassesApp {
   /** Called from the phone UI: show a calculator result on the glasses. */
   async showCalculator(input: string): Promise<void> {
     this.calcInput = input;
-    await this.openSheet(calculatorSheet(input));
+    await this.openSheetById('calc');
   }
 
+  /**
+   * Open a sheet from the phone UI. The stack is rebuilt so that "back" on the
+   * glasses leads somewhere sensible (subnet details → subnet list → menu).
+   */
   async openSheetById(id: string): Promise<void> {
-    if (id === 'calc') return this.openSheet(calculatorSheet(this.calcInput));
-    const sheet = SHEETS.find((s) => s.id === id);
-    if (sheet) await this.openSheet(sheet);
+    const sheet = sheetById(id, this.calcInput);
+    if (!sheet) return;
+    this.stack = [{ kind: 'list', id: 'menu' }];
+    const m = id.match(/^subnet-(\d+)$/);
+    if (m) {
+      this.stack.push({ kind: 'list', id: 'subnets' });
+      if (Number(m[1]) < 16) this.stack.push({ kind: 'list', id: 'subnets-large' });
+    }
+    this.stack.push(GlassesApp.sheetScreen(sheet));
+    await this.render();
+  }
+
+  /** Current screen, for tests and debugging. */
+  get current(): { kind: 'list'; id: string } | { kind: 'sheet'; id: string; page: number; pageCount: number } {
+    const top = this.top;
+    return top.kind === 'list'
+      ? { kind: 'list', id: top.id }
+      : { kind: 'sheet', id: top.sheet.id, page: top.page, pageCount: top.pages.length };
   }
 
   // ---- layouts -----------------------------------------------------------
 
-  private menuLayout() {
-    const labels = this.menuIds.map((id) => MENU_LABELS[id] ?? id);
+  private get top(): Screen {
+    return this.stack[this.stack.length - 1];
+  }
+
+  private static sheetScreen(sheet: Sheet): Screen {
+    return { kind: 'sheet', sheet, pages: paginate(sheet.lines, LINES_PER_PAGE), page: 0 };
+  }
+
+  private layout() {
+    const top = this.top;
+    return top.kind === 'list' ? this.listLayout(listDef(top.id)) : this.sheetLayout(top);
+  }
+
+  private header(content: string) {
+    return new TextContainerProperty({
+      xPosition: 0,
+      yPosition: 0,
+      width: DISPLAY_W,
+      height: 40,
+      containerID: HEADER_ID,
+      containerName: HEADER_NAME,
+      zOrderIndex: 1,
+      content,
+      textColor: 3,
+      isEventCapture: 0,
+    });
+  }
+
+  private listLayout(def: ListDef) {
+    const labels = def.items.map((i) => i.label);
+    if (labels.length > MAX_LIST_ITEMS) console.warn(`List has ${labels.length} items; max is ${MAX_LIST_ITEMS}`);
     return {
       containerTotalNum: 2,
-      textObject: [
-        new TextContainerProperty({
-          xPosition: 0,
-          yPosition: 0,
-          width: DISPLAY_W,
-          height: 40,
-          containerID: HEADER_ID,
-          containerName: HEADER_NAME,
-          zOrderIndex: 1,
-          content: 'NET TOOLS  ·  click = open  ·  2× = exit',
-          textColor: 3,
-          isEventCapture: 0,
-        }),
-      ],
+      textObject: [this.header(def.header)],
       listObject: [
         new ListContainerProperty({
           xPosition: 0,
           yPosition: 44,
           width: DISPLAY_W,
           height: DISPLAY_H - 44,
-          containerID: MENU_ID,
-          containerName: MENU_NAME,
+          containerID: LIST_ID,
+          containerName: LIST_NAME,
           zOrderIndex: 2,
           isEventCapture: 1,
           itemContainer: new ListItemContainerProperty({
@@ -131,22 +205,11 @@ export class GlassesApp {
     };
   }
 
-  private sheetLayout() {
+  private sheetLayout(s: Extract<Screen, { kind: 'sheet' }>) {
     return {
       containerTotalNum: 2,
       textObject: [
-        new TextContainerProperty({
-          xPosition: 0,
-          yPosition: 0,
-          width: DISPLAY_W,
-          height: 40,
-          containerID: HEADER_ID,
-          containerName: HEADER_NAME,
-          zOrderIndex: 1,
-          content: this.headerText(),
-          textColor: 3,
-          isEventCapture: 0,
-        }),
+        this.header(GlassesApp.headerText(s)),
         new TextContainerProperty({
           xPosition: 0,
           yPosition: 44,
@@ -155,56 +218,65 @@ export class GlassesApp {
           containerID: BODY_ID,
           containerName: BODY_NAME,
           zOrderIndex: 2,
-          content: this.bodyText(),
+          content: GlassesApp.bodyText(s),
           isEventCapture: 1,
         }),
       ],
     };
   }
 
-  private headerText(): string {
-    const title = this.sheet?.title ?? '';
-    return this.pages.length > 1 ? `${title}   ${this.page + 1}/${this.pages.length}` : title;
+  private static headerText(s: Extract<Screen, { kind: 'sheet' }>): string {
+    const { title } = s.sheet;
+    return s.pages.length > 1 ? `${title}   ${s.page + 1}/${s.pages.length}` : title;
   }
 
-  private bodyText(): string {
-    return (this.pages[this.page] ?? []).join('\n');
+  private static bodyText(s: Extract<Screen, { kind: 'sheet' }>): string {
+    return (s.pages[s.page] ?? []).join('\n');
   }
 
   // ---- navigation --------------------------------------------------------
 
-  private async openSheet(sheet: Sheet): Promise<void> {
-    this.sheet = sheet;
-    this.pages = paginate(sheet.lines, LINES_PER_PAGE);
-    this.page = 0;
-    this.mode = 'sheet';
+  private async render(): Promise<void> {
     if (!this.started) return;
-    await this.bridge.rebuildPageContainer(new RebuildPageContainer(this.sheetLayout()));
+    await this.bridge.rebuildPageContainer(new RebuildPageContainer(this.layout()));
   }
 
-  private async openMenu(): Promise<void> {
-    this.mode = 'menu';
-    this.sheet = null;
-    await this.bridge.rebuildPageContainer(new RebuildPageContainer(this.menuLayout()));
+  private async open(target: string): Promise<void> {
+    if (target.startsWith('list:')) {
+      this.stack.push({ kind: 'list', id: target.slice(5) });
+    } else {
+      const sheet = sheetById(target, this.calcInput);
+      if (!sheet) return;
+      this.stack.push(GlassesApp.sheetScreen(sheet));
+    }
+    await this.render();
   }
 
-  private async turnPage(delta: number): Promise<void> {
-    const next = this.page + delta;
-    if (next < 0 || next >= this.pages.length) return;
-    this.page = next;
+  private async back(): Promise<void> {
+    if (this.stack.length <= 1) {
+      // Root page: Even Hub requires double-tap to exit here.
+      await this.bridge.shutDownPageContainer(1);
+      return;
+    }
+    this.stack.pop();
+    await this.render();
+  }
+
+  /** Swap the current sheet for a neighbour (e.g. /26 → /25). */
+  private async replaceSheet(id: string | undefined): Promise<void> {
+    const sheet = id ? sheetById(id, this.calcInput) : undefined;
+    if (!sheet) return;
+    this.stack[this.stack.length - 1] = GlassesApp.sheetScreen(sheet);
+    await this.render();
+  }
+
+  private async turnPage(s: Extract<Screen, { kind: 'sheet' }>, delta: number): Promise<void> {
+    s.page += delta;
     await this.bridge.textContainerUpgrade(
-      new TextContainerUpgrade({
-      containerID: HEADER_ID,
-      containerName: HEADER_NAME,
-      content: this.headerText(),
-      }),
+      new TextContainerUpgrade({ containerID: HEADER_ID, containerName: HEADER_NAME, content: GlassesApp.headerText(s) }),
     );
     await this.bridge.textContainerUpgrade(
-      new TextContainerUpgrade({
-      containerID: BODY_ID,
-      containerName: BODY_NAME,
-      content: this.bodyText(),
-      }),
+      new TextContainerUpgrade({ containerID: BODY_ID, containerName: BODY_NAME, content: GlassesApp.bodyText(s) }),
     );
   }
 
@@ -226,10 +298,10 @@ export class GlassesApp {
     }
   }
 
-  /** Some hosts report one gesture on more than one channel; drop repeats. */
+  /** Scroll events can fire in bursts and some hosts report a gesture twice. */
   private isDuplicate(action: string): boolean {
     const now = Date.now();
-    const dup = this.lastAction.action === action && now - this.lastAction.at < 200;
+    const dup = this.lastAction.action === action && now - this.lastAction.at < 300;
     this.lastAction = { action, at: now };
     return dup;
   }
@@ -238,41 +310,40 @@ export class GlassesApp {
     void this.dispatch(e).catch((err) => console.error('event handling failed', err));
   }
 
-  private async dispatch(e: EvenHubEvent): Promise<void> {
-    if (e.sysEvent?.eventType === OsEventTypeList.SYSTEM_EXIT_EVENT) return;
-
-    if (e.listEvent && this.mode === 'menu') {
-      const action = GlassesApp.toAction(e.listEvent.eventType);
-      if (!action || this.isDuplicate(action)) return;
-      if (action === 'click') {
-        const byName = this.menuIds.findIndex(
-          (id) => MENU_LABELS[id] === e.listEvent?.currentSelectItemName,
-        );
-        const idx = byName >= 0 ? byName : (e.listEvent.currentSelectItemIndex ?? 0);
-        const id = this.menuIds[idx];
-        if (id) await this.openSheetById(id);
-      } else if (action === 'double') {
-        await this.bridge.shutDownPageContainer(1);
-      }
-      return;
-    }
-
-    const src = e.textEvent ?? e.sysEvent;
+  /** Handle one event and wait for the screen update (public for tests). */
+  async dispatch(e: EvenHubEvent): Promise<void> {
+    const top = this.top;
+    const src = e.listEvent ?? e.textEvent ?? e.sysEvent;
     if (!src) return;
     const action = GlassesApp.toAction(src.eventType);
     if (!action || this.isDuplicate(action)) return;
 
-    if (this.mode === 'sheet') {
-      if (action === 'double') await this.openMenu();
-      else if (action === 'down') await this.turnPage(1);
-      else if (action === 'up') await this.turnPage(-1);
-      else if (action === 'click') {
-        // Click advances; on the last page it returns to the menu.
-        if (this.page < this.pages.length - 1) await this.turnPage(1);
-        else await this.openMenu();
-      }
-    } else if (action === 'double') {
-      await this.bridge.shutDownPageContainer(1);
+    if (top.kind === 'list') {
+      if (action === 'double') return this.back();
+      if (action !== 'click' || !e.listEvent) return; // the list scrolls natively
+      const { items } = listDef(top.id);
+      const byName = items.findIndex((i) => i.label === e.listEvent?.currentSelectItemName);
+      // The first item's index (0) is often omitted from the event.
+      const idx = byName >= 0 ? byName : (e.listEvent.currentSelectItemIndex ?? 0);
+      const item = items[idx];
+      if (item) await this.open(item.target);
+      return;
+    }
+
+    const last = top.pages.length - 1;
+    switch (action) {
+      case 'double':
+        return this.back();
+      case 'down':
+        if (top.page < last) return this.turnPage(top, 1);
+        return this.replaceSheet(top.sheet.nextId);
+      case 'up':
+        if (top.page > 0) return this.turnPage(top, -1);
+        return this.replaceSheet(top.sheet.prevId);
+      case 'click':
+        // Click advances; on the last page it goes back.
+        if (top.page < last) return this.turnPage(top, 1);
+        return this.back();
     }
   }
 }

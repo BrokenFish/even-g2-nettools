@@ -1,6 +1,6 @@
 import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk';
 import './style.css';
-import { SHEETS } from './content';
+import { SHEETS, SUBNET_PREFIXES, sheetText, subnetDetail, subnetLabel, type Sheet } from './content';
 import { GlassesApp, type Bridge } from './glasses';
 import { MockBridge } from './mock-bridge';
 import { calculate, formatCount, split } from './subnet';
@@ -117,19 +117,25 @@ async function main(): Promise<void> {
     }
   });
 
-  const sheets = $('sheets');
-  for (const s of SHEETS) {
+  const sheetDetails = (title: string, sheet: Sheet, className = '') => {
     const d = document.createElement('details');
+    if (className) d.className = className;
     const sum = document.createElement('summary');
-    sum.textContent = s.title;
+    sum.textContent = title;
     const pre = document.createElement('pre');
-    pre.textContent = s.lines.join('\n');
+    pre.textContent = sheetText(sheet);
     const btn = document.createElement('button');
     btn.textContent = 'Vis på brillene';
-    btn.addEventListener('click', () => void app.openSheetById(s.id));
+    btn.addEventListener('click', () => void app.openSheetById(sheet.id));
     d.append(sum, pre, btn);
-    sheets.appendChild(d);
-  }
+    return d;
+  };
+
+  const subnets = $('subnets');
+  for (const p of SUBNET_PREFIXES) subnets.appendChild(sheetDetails(subnetLabel(p), subnetDetail(p), 'subnet'));
+
+  const sheets = $('sheets');
+  for (const s of SHEETS) sheets.appendChild(sheetDetails(s.title, s));
 
   if (mock) {
     $('preview-card').hidden = false;

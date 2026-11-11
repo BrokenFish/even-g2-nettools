@@ -13,7 +13,7 @@ import {
   type RebuildPageContainer,
   type TextContainerUpgrade,
 } from '@evenrealities/even_hub_sdk';
-import type { Bridge } from './glasses';
+import { MAX_LIST_ITEMS, MAX_LIST_LABEL, type Bridge } from './glasses';
 
 type Page = CreateStartUpPageContainer | RebuildPageContainer;
 
@@ -26,11 +26,13 @@ export class MockBridge implements Bridge {
   constructor(private screen: HTMLElement) {}
 
   async createStartUpPageContainer(c: CreateStartUpPageContainer): Promise<StartUpPageCreateResult> {
+    if (!MockBridge.valid(c)) return StartUpPageCreateResult.invalid;
     this.load(c);
     return StartUpPageCreateResult.success;
   }
 
   async rebuildPageContainer(c: RebuildPageContainer): Promise<boolean> {
+    if (!MockBridge.valid(c)) return false;
     this.load(c);
     return true;
   }
@@ -90,6 +92,18 @@ export class MockBridge implements Bridge {
         : { sysEvent: new Sys_ItemEvent({ eventType }) };
     }
     this.listeners.forEach((cb) => cb(event));
+  }
+
+  /** Reject pages the real firmware would refuse, so problems show up in the browser too. */
+  static valid(c: Page): boolean {
+    for (const l of c.listObject ?? []) {
+      const names = l.itemContainer?.itemName ?? [];
+      if (names.length > MAX_LIST_ITEMS || names.some((n) => n.length > MAX_LIST_LABEL)) {
+        console.error(`List "${l.containerName}" exceeds firmware limits (${names.length} items)`);
+        return false;
+      }
+    }
+    return true;
   }
 
   private load(c: Page): void {

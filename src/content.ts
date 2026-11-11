@@ -2,36 +2,157 @@
 // The G2 font is proportional, so columns are separated with symbols rather
 // than padded with spaces. Keep lines short (≈40 chars) so nothing wraps.
 
-import { calculate, formatCount, prefixToMask, usableHosts, intToIp, prefixToMaskInt } from './subnet';
+import { calculate, formatCount, intToIp, ipToInt, prefixToMask, prefixToMaskInt, usableHosts } from './subnet';
+
+/** Put this in a sheet's lines to force a new page on the glasses. */
+export const PAGE_BREAK = '\f';
 
 export interface Sheet {
   id: string;
   title: string;
   lines: string[];
+  /** Neighbouring sheets reached by scrolling past the first / last page. */
+  prevId?: string;
+  nextId?: string;
 }
 
-function subnetTable(): string[] {
-  const lines: string[] = [];
-  for (let p = 8; p <= 32; p++) {
-    lines.push(`/${p}  ${prefixToMask(p)}  ·  ${formatCount(usableHosts(p))}`);
+// ---- Subnet table & per-subnet details ------------------------------------
+
+export const MIN_PREFIX = 8;
+export const MAX_PREFIX = 32;
+
+/** All prefixes, smallest subnet first (/32 → /8). */
+export const SUBNET_PREFIXES: number[] = Array.from(
+  { length: MAX_PREFIX - MIN_PREFIX + 1 },
+  (_, i) => MAX_PREFIX - i,
+);
+
+function hostsLabel(p: number): string {
+  const n = usableHosts(p);
+  return `${formatCount(n)} ${n === 1 ? 'host' : 'hosts'}`;
+}
+
+export function subnetLabel(p: number): string {
+  return `/${p}  ${prefixToMask(p)}  ·  ${hostsLabel(p)}`;
+}
+
+const SUBNET_USES: Record<number, string> = {
+  32: 'Single host, loopback, host route',
+  31: 'Point-to-point link (RFC 3021)',
+  30: 'Classic point-to-point link',
+  29: 'Small WAN / DMZ block',
+  28: 'Small office, servers, mgmt',
+  27: 'Small LAN segment',
+  26: 'Small–medium LAN',
+  25: 'Half a /24 LAN',
+  24: 'Typical LAN / VLAN',
+  23: 'Larger LAN (2 × /24)',
+  22: 'Large LAN, Wi-Fi (4 × /24)',
+  20: 'Site / building block',
+  16: 'Campus, cloud VPC',
+  12: '172.16.0.0/12 private block',
+  8: 'Class A, 10.0.0.0/8 private',
+};
+
+const ORDINAL = ['1st', '2nd', '3rd', '4th'];
+
+/** Example network used to illustrate each prefix size. */
+export function exampleNetwork(p: number): number {
+  const base = p >= 24 ? '192.168.1.0' : p >= 17 ? '172.16.0.0' : '10.0.0.0';
+  return (ipToInt(base) & prefixToMaskInt(p)) >>> 0;
+}
+
+/** The larger block the example is carved out of (/24, /16 or /8). */
+function parentPrefix(p: number): number | null {
+  if (p >= 25) return 24;
+  if (p >= 17) return 16;
+  if (p >= 9) return 8;
+  return null;
+}
+
+export function subnetDetail(p: number): Sheet {
+  if (!Number.isInteger(p) || p < MIN_PREFIX || p > MAX_PREFIX) {
+    throw new Error(`Prefix out of range: /${p}`);
   }
-  return lines;
+  const mask = prefixToMaskInt(p);
+  const size = 2 ** (32 - p);
+  const net = exampleNetwork(p);
+  const bc = (net + size - 1) >>> 0;
+  const octetIdx = Math.floor((p - 1) / 8);
+  const block = 2 ** ((32 - p) % 8);
+  const parent = parentPrefix(p);
+
+  const lines: string[] = [
+    `Mask  ·  ${prefixToMask(p)}`,
+    `Wildcard  ·  ${intToIp(~mask >>> 0)}`,
+    `Usable hosts  ·  ${formatCount(usableHosts(p))}`,
+    `Total addresses  ·  ${formatCount(size)}`,
+    `Block size  ·  ${block} (${ORDINAL[octetIdx]} octet)`,
+  ];
+  if (parent !== null) lines.push(`Subnets per /${parent}  ·  ${formatCount(2 ** (p - parent))}`);
+  if (SUBNET_USES[p]) lines.push(`Use  ·  ${SUBNET_USES[p]}`);
+  lines.push(calculate(`${intToIp(net)}/${p}`).binaryMask);
+
+  // Example addresses
+  lines.push(PAGE_BREAK);
+  if (p === 32) {
+    const host = net + 10;
+    lines.push(
+      `Example  ·  ${intToIp(host)}/32`,
+      `Address  ·  ${intToIp(host)}`,
+      'No network / broadcast address',
+      'Mask 255.255.255.255 = this IP only',
+    );
+  } else if (p === 31) {
+    lines.push(
+      `Example  ·  ${intToIp(net)}/31`,
+      `Host A  ·  ${intToIp(net)}`,
+      `Host B  ·  ${intToIp(net + 1)}`,
+      'No network / broadcast address',
+      `Next subnet  ·  ${intToIp(net + 2)}`,
+    );
+  } else {
+    lines.push(
+      `Example  ·  ${intToIp(net)}/${p}`,
+      `Network  ·  ${intToIp(net)}`,
+      `First host  ·  ${intToIp(net + 1)}`,
+      `Last host  ·  ${intToIp(bc - 1)}`,
+      `Broadcast  ·  ${intToIp(bc)}`,
+      `Next subnet  ·  ${bc === 0xffffffff ? '—' : intToIp(bc + 1)}`,
+    );
+  }
+
+  // The first few subnets inside the parent block.
+  if (parent !== null) {
+    const parentNet = (net & prefixToMaskInt(parent)) >>> 0;
+    const count = 2 ** (p - parent);
+    const shown = Math.min(count, 6);
+    lines.push(PAGE_BREAK, `In ${intToIp(parentNet)}/${parent}  (net – broadcast):`);
+    for (let i = 0; i < shown; i++) {
+      const start = parentNet + i * size;
+      lines.push(`${intToIp(start)} – ${intToIp(start + size - 1)}`);
+    }
+    if (count > shown) lines.push(`… ${formatCount(count - shown)} more`);
+  }
+
+  return {
+    id: `subnet-${p}`,
+    title: `/${p}  ·  ${prefixToMask(p)}`,
+    lines,
+    prevId: p < MAX_PREFIX ? `subnet-${p + 1}` : undefined,
+    nextId: p > MIN_PREFIX ? `subnet-${p - 1}` : undefined,
+  };
 }
 
 function wildcardTable(): string[] {
   const lines: string[] = [];
-  for (let p = 16; p <= 32; p++) {
+  for (let p = 32; p >= 16; p--) {
     lines.push(`/${p}  ${intToIp(~prefixToMaskInt(p) >>> 0)}`);
   }
   return lines;
 }
 
 export const SHEETS: Sheet[] = [
-  {
-    id: 'cidr',
-    title: 'CIDR  →  Mask  ·  Hosts',
-    lines: subnetTable(),
-  },
   {
     id: 'octet',
     title: 'Mask octets & block size',
@@ -226,9 +347,33 @@ export function calculatorSheet(input: string): Sheet {
   }
 }
 
+/** Look up any sheet by id: static sheets, `subnet-<n>`, or `calc`. */
+export function sheetById(id: string, calcInput: string): Sheet | undefined {
+  if (id === 'calc') return calculatorSheet(calcInput);
+  const m = id.match(/^subnet-(\d+)$/);
+  if (m) {
+    const p = Number(m[1]);
+    return p >= MIN_PREFIX && p <= MAX_PREFIX ? subnetDetail(p) : undefined;
+  }
+  return SHEETS.find((s) => s.id === id);
+}
+
 export function paginate(lines: string[], perPage: number): string[][] {
-  if (lines.length === 0) return [[]];
   const pages: string[][] = [];
-  for (let i = 0; i < lines.length; i += perPage) pages.push(lines.slice(i, i + perPage));
-  return pages;
+  let section: string[] = [];
+  const flush = () => {
+    for (let i = 0; i < section.length; i += perPage) pages.push(section.slice(i, i + perPage));
+    section = [];
+  };
+  for (const line of lines) {
+    if (line === PAGE_BREAK) flush();
+    else section.push(line);
+  }
+  flush();
+  return pages.length ? pages : [[]];
+}
+
+/** Plain-text version of a sheet for the phone UI. */
+export function sheetText(sheet: Sheet): string {
+  return sheet.lines.map((l) => (l === PAGE_BREAK ? '' : l)).join('\n');
 }
